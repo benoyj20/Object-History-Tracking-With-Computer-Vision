@@ -1,7 +1,7 @@
 # Physical Version Control for Object History Tracking
 
-A fixed camera over a shared kitchen counter takes snapshots over time. This project turns those
-snapshots into an object-level history: what is on the counter, where each item is, when it was
+A phone camera takes snapshots of a shared kitchen counter over time, handheld or loosely placed
+and from any angle. This project turns those snapshots into an object-level history: what is on the counter, where each item is, when it was
 added, moved, or removed, and how long it has stayed in one place. A natural-language assistant
 answers questions such as "how long has the milk been out?" or "where is the dish soap?" from
 that history.
@@ -21,11 +21,13 @@ CS5330 Computer Vision final project, Northeastern University, by Justin Gubbens
 
 ## Current status
 
-The repository is set up: a uv workspace with one package per component, the shared
-detector-to-tracker contract, a GPU environment check, a starter Next.js web app, CI, and
-contributor rules. Detection
-training, tracking, the assistant, and evaluation are not implemented yet. See the
-[project checklist](docs/project-checklist.md) for what exists and what remains.
+Detection works: a YOLO26s model fine-tuned on Kaggle close-ups and 449 labeled counter photos
+from three kitchens finds 93% of cutlery on held-out photos (see
+[detector results](docs/detector-results.md)), and `objhist_detection.detect` writes its output
+per session for the tracker. Labeling tools, detector scoring, a starter Next.js web app, CI,
+and contributor rules are in place. Tracking, the history store, the assistant, and scenario
+evaluation are not implemented yet. See the [project checklist](docs/project-checklist.md) for
+what exists and what remains.
 
 ## Quick start
 
@@ -74,13 +76,14 @@ make train DATA=data/processed/kitchen/data.yaml EPOCHS=100
 | `packages/evaluation` | Scripted scenarios, event precision and recall | Joint |
 | `apps/web` | Next.js web page for asking questions and viewing history | Joint |
 | `data/` | Local datasets, captures, and outputs (not committed) | |
-| `docs/` | Plan, checklist, data card, evaluation protocol, decisions | |
+| `docs/` | Plan, checklist, data card, detector results, evaluation protocol, decisions | |
 
 ## Documentation
 
 - [Problem statement and plan](docs/problem-statement-and-plan.md)
 - [Project checklist](docs/project-checklist.md)
 - [Data card](docs/data-card.md)
+- [Detector results](docs/detector-results.md)
 - [Evaluation protocol](docs/evaluation-protocol.md)
 - [Architecture decisions](docs/adr/README.md)
 
