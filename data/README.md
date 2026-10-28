@@ -47,10 +47,11 @@ filename,captured_at
 - `captured_at` is ISO 8601 with a UTC offset. Placement intervals and "how long has it been
   out" answers come from these times, so they must be the real capture times, not file
   modification times.
-- The camera is handheld or loosely placed and may move between snapshots (Benoy's capture
-  method, decided 2026-10-12). Tracking therefore cannot assume an object keeps its pixel
-  position when nothing changed; association relies on appearance and on positions relative
-  to the counter.
+- The camera is handheld or loosely placed, may move between snapshots, and can view the
+  counter from any angle: from the side at standing height, at a slant, or straight down
+  (Benoy's capture method, decided 2026-10-12; any angle confirmed 2026-10-28). Tracking
+  therefore cannot assume an object keeps its pixel position when nothing changed;
+  association relies on appearance and on positions relative to the counter.
 - Photos are JPEG (Android's default; an iPhone needs Camera > Formats > Most Compatible).
 - Use a short, descriptive session ID such as `2026-10-12-evening`. A session belongs to exactly
   one split (train, validation, or test).

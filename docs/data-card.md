@@ -6,8 +6,9 @@ are split so results can be reproduced.
 
 ## Intended use
 
-Fine-tune a YOLO26 detector for objects on a shared kitchen counter seen from a fixed overhead
-camera, and build scripted scenarios for evaluating the object history.
+Fine-tune a YOLO26 detector for objects on a shared kitchen counter photographed from any
+angle (handheld or loosely placed, from the side to straight down), and build scripted
+scenarios for evaluating the object history.
 
 ## Candidate sources
 
@@ -15,7 +16,7 @@ camera, and build scripted scenarios for evaluating the object history.
 | --- | --- | --- | --- |
 | [Roboflow Kitchen Items](https://universe.roboflow.com/new-bywkn/kitchen-items-u5c2t) | 1,839 images, boxes for 9 classes: cup, plate, spoon, fork, knife, dish, kettle, pan, rice cooker | Yes | License and version to record at download; viewpoint differs from an overhead counter camera |
 | [Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data) | Image-level labels for 6 categories: cups, glasses, plates, spoons, forks, knives | Only after box annotation; see [below](#kaggle-kitchenware-auto-labels) | Training confirmed allowed (2026-10-09); no redistribution |
-| Provided snapshot sequences | Ordered images from a fixed counter camera, supplied by Benoy in the format in [data/README.md](../data/README.md) | Yes, after box labeling | Required for the target classes and viewpoint; see gaps below |
+| Provided snapshot sequences | Ordered images of the counter from any camera angle, supplied by Benoy in the format in [data/README.md](../data/README.md) | Yes, after box labeling | Required for the target classes and viewpoint; see gaps below |
 | COCO-pretrained YOLO26 | Pretrained classes include cup, bottle, bowl, knife, spoon, fork, wine glass, banana, apple, orange | Zero-shot baseline only | Useful to measure what fine-tuning adds |
 
 ## Kaggle kitchenware auto-labels
@@ -134,7 +135,7 @@ Inference took 7.6 ms per image at 640 px.
 
 ### Limitations
 
-- Close-up single-object photos differ from the overhead multi-object counter view the project
+- Close-up single-object photos differ from the multi-object counter views the project
   targets; this set can only supplement in-domain data, and all evaluation stays on the provided
   sequences.
 - Dropping images without a usable box removes hard cases from validation and test, so metrics
@@ -479,13 +480,102 @@ Cutlery mAP50-95 for YOLO26s: fork 0.658, knife 0.697, spoon 0.778 (nano: 0.585,
   Session `2026-10-18-1140` (48 photos from a second kitchen) is that new test session; see
   [Provided sequences](#provided-sequences).
 
+### Held-out run `yolo26s-counter-kitchen-2026-10-21-1280-e15` (2026-10-21)
+
+- **Data:** `counter-2026-10-21`: train 159 photos (75 first-kitchen plus the 84 of
+  `2026-10-18-1055`), val 29 (sessions 1624 and 2314), test 41 (sessions 1643 and 2322), with
+  Kaggle train and each counter train photo listed 10 times (`counter-plus-kitchen-2026-10-21`).
+- **Setup:** official `yolo26s.pt`, 1280 px, 15 epochs, batch 4, seed 0. `best.pt` (epoch 13,
+  val mAP50-95 0.861) SHA-256
+  `396ade23caedb3bfb9412315442bd06ea46b44378b1c84b6465bc15318e6b983`.
+- **Test (41 photos, 287 objects, 123 cutlery):** mAP50-95 0.775, 248 correct, cutlery 85
+  (69%). The control `yolo26s-counter-kitchen-1280-b4` (the same first-kitchen photos without
+  the second kitchen) scored 242 and 81, so the second-kitchen photos gave a small gain.
+- **Cutlery errors:** about a third are pieces the model found but boxed only in part
+  (IoU < 0.5): a fork under the plate rim, a spoon in the glass, a dark knife behind the green
+  mug at night, plus piles and fork/spoon mix-ups. The second-kitchen photos mostly show
+  cutlery laid apart, so they do not teach these cases.
+
+### Random splits by photo (2026-10-21 and 2026-10-27)
+
+After all photos were reviewed, Benoy chose to split by photo at random instead of by session,
+after being told that consecutive photos are near-duplicates and that this makes test scores
+optimistic (see [Known gaps](#known-gaps)). Every kitchen appears in every split. Each model
+starts from the official `yolo26s.pt` and trains at 1280 px for 15 epochs, batch 4, seed 0,
+with Kaggle train plus each counter train photo listed 10 times; epoch 15 was best in every run.
+
+| Dataset | Seed | Train | Val | Test | `split.json` SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| `counter-random-2026-10-21` (kitchens 1–2, 300 photos) | 20261021 | 210 | 45 | 45 | `ce0083d5ef1dd47a33e23039566a906281083e53617b8ccdac4d0385584a7185` |
+| `counter-random-2026-10-27` (kitchens 1–3, 449 photos) | 20261027 | 314 | 67 | 68 | `c3f2485ce20de5d4dcff9e2ac781882cf47ef6515cb04178e7405bff77ca9392` |
+
+`counter-random-2026-10-27-relabeled` keeps the 2026-10-27 split and takes its labels from
+Benoy's re-review of his first-kitchen photos (below); `manifest.csv` SHA-256
+`b5b12717f5975ad5e251317a45ea0c24f23bceeed3715802f9ba192796a3295d`.
+
+**`yolo26s-counter-random-2026-10-21-1280-e15`** (val mAP50-95 0.916; `best.pt`
+`de987b57c8e3831b5dc666c4b8d5d2e65f2a687f6382bf38f9db6fb4cef1a80d`). On its 45 test photos:
+mAP50-95 0.897, 296 of 311 objects, cutlery 120 of 135 (89%). A 5-epoch continuation at a lower
+learning rate did not improve validation and was stopped after 2 epochs.
+
+**New-kitchen test (2026-10-24).** The same model on all 149 labeled third-kitchen photos
+(`counter-2026-10-24-test`; it had seen none of that kitchen) found 670 of 1,042 objects (64%)
+and 221 of 446 cutlery (50%), mAP50-95 0.636. It read the all-steel dinner knife as a spoon (56)
+or fork (14), the appliance as a plate (50 false boxes), and 16 glasses as cups. The 89% from
+the random split does not carry over to an unseen kitchen.
+
+**Re-review (2026-10-28).** Benoy re-reviewed all 145 first-kitchen photos: 140 changed, mostly
+tightened boxes (371 adjusted, 154 drawn). `reviews.json` now holds 450 photo reviews, SHA-256
+`31be658fb3af45f8c56a3c803408eccd735f982b00951dbbe983014acc6259ee`.
+
+**Three runs on the 2026-10-27 split**, all scored on the same 68 test photos with the
+re-reviewed labels (470 objects, 203 cutlery; `detector-counts-v1`, single pass, duplicates
+merged, confidence ≥ 0.25):
+
+| Run | Training labels | Augmentation | `best.pt` SHA-256 | Val mAP50-95 | Test mAP50-95 | Correct | Cutlery | Kitchen 1 night cutlery (of 27) | False |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `yolo26s-counter-random-2026-10-27-1280-e15` | before re-review | default | `4233cd0583aa2b3670431cc4b479a50f8f1d4c18da55e68ae67f3d926e0bac98` | 0.945 | 0.934 | 453 | 188 | 21 | 8 |
+| `yolo26s-counter-random-relabeled-2026-10-28-1280-e15` | re-reviewed | default | `61af703cdb2dd8bd0679f5dfac4d16271f27befc4a487817aabe6f36eaf1c3b5` | 0.953 | 0.935 | 452 | 187 | 23 | 6 |
+| `yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15` | re-reviewed | + `flipud=0.5` | `57f3572d41b0ff925cb2e58f4659a0a9a5f66740b22c1fa17f2476bcfe24ebcb` | 0.951 | 0.934 | 453 | **189 (93%)** | **25** | 6 |
+
+- **By kitchen, flip run (cutlery):** first kitchen day 44 of 51, night 25 of 27; second
+  kitchen 63 of 66; third kitchen 57 of 59 (3 false boxes). Per-class mAP50-95: fork 0.886,
+  knife 0.889, spoon 0.896. At IoU ≥ 0.1, 196 of 203 cutlery pieces are found.
+- **Reading the table:** the three runs differ by 1–3 objects, which is noise on 68 photos.
+  The only steady trend is night cutlery in the first kitchen (21 → 23 → 25). The flip run is
+  the current best model.
+- **Rotation was not used:** rotating a photo makes Ultralytics enlarge each box to cover the
+  rotated corners, which loosens boxes on thin diagonal cutlery (+42% area for a diagonal knife
+  at 10°). A vertical flip keeps boxes exact. Benoy chose the flip only.
+- **Caveat:** with a random split, near-duplicate photos from one moment can sit in both train
+  and test, so these numbers are optimistic. The new-kitchen test above shows how far an
+  unseen setting can fall. A new, unseen session is needed for an honest score.
+
+### Label fixes and photo viewings by Claude (2026-10-21 to 2026-10-28)
+
+All photos were Benoy's (see AGENTS.md); each viewing was a downscaled copy (1400–2000 px)
+without EXIF, and no photo showed a person.
+
+- **Label fixes:** two glasses labeled cup were relabeled glass (`2026-10-18-1140/IMG_6664`,
+  `-1155/IMG_6721`) after Benoy's fix did not save; a knife labeled cup was relabeled knife
+  (`2026-10-24-0036/IMG_4385`); two forks were relabeled (`IMG_4476` cup → fork, `IMG_4509`
+  knife → fork). Benoy was shown the first two. Backups of every earlier `reviews.json` are kept
+  as `reviews-before-*.json`.
+- **Confirmed by Benoy as correct:** `IMG_6571`–`6610` have no glass (not yet on the counter);
+  `IMG_6718` has no fork; `IMG_4479` has no spoon; `IMG_4371` has no knife (Benoy's call:
+  Claude had read a steel handle under the plate as a knife).
+- **Photos viewed:** `IMG_6571`, `IMG_6611`, `IMG_6723` (labels and suggestions); first-kitchen
+  `2322/232937`, `2322/232809`, `1643/164614` (detector mistakes drawn); 6 validation and test
+  photos whose labels did not match the object list, plus `IMG_6664` and `IMG_6721`;
+  third-kitchen `IMG_4364`, `4371`, `4378`, `4385`, `4396`, `4427`, `4456`.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
   final class list must be chosen with the scenarios in mind, and those classes need team
   annotations on the provided sequences.
-- Public images are mostly close-up or side views. The provided fixed-camera sequences are
-  needed for in-domain training and must be used for all evaluation.
+- Public images are mostly close-up single objects. The provided counter sequences, shot from
+  any angle, are needed for in-domain training and must be used for all evaluation.
 - Consecutive snapshots from one session are nearly identical, which inflates metrics if they
   are split randomly.
 
@@ -517,11 +607,23 @@ zone.
   - **Splits** (by Claude, at Benoy's request), cut at a 16-minute pause in the shoot:
     `-1055` = train (84 photos, 10:56–11:24, proposed by `yolo26s-counter-final-1280-e15`);
     `-1140` = test (48 photos, 11:40–11:54) and `-1155` = validation (23 photos,
-    11:56–12:02), both proposed by YOLOE.
+    11:56–12:02). YOLOE's suggestions for these two were unusable (13.6 boxes per photo), so at
+    Benoy's request a throwaway copy of `yolo26s-counter-final-1280-e15` (`f9e10aa9…`)
+    suggested their boxes (6.5 per photo) and was then deleted; `proposals.meta.json` records it
+    as `helper-detector`. Later models train from the official `yolo26s.pt`, never from it.
+    These splits were replaced by the random splits above.
   - **Domain shift:** before any review, the YOLO26s detector found exactly the seven-object
     list (2 cups, 1 each of fork, glass, knife, plate, spoon) in only 28 of the 155 photos.
     Missed glasses were the most common difference. Claude did not view the photos for this
     count.
+- `2026-10-24-0007`, `-0026`, `-0036`, `-0040`, `-0047`, `-0108`, `-0120`, `-0133` (third
+  kitchen, night of 2026-10-23/24): 150 photos (IMG_4364–4514; 8, 6, 10, 8, 23, 7, 29, and 59
+  per session, split at pauses in shooting), provided by Benoy, who allowed Claude to view them.
+  iPhone 17 Pro, shot top-down over a white counter, with an all-steel dinner knife. Capture
+  times come from EXIF with a UTC offset; the raw files also hold GPS, which stays local.
+  Boxes were suggested first by a throwaway copy of `f9e10aa9…`, then, for the 114 photos not
+  yet reviewed, by `helper-2026-10-24` (fine-tuned from it on the reviewed photos; weights
+  deleted after use). Benoy reviewed all 150.
 
 ## Class list
 
