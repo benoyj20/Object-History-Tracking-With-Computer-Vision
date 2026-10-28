@@ -19,6 +19,9 @@ appearance descriptor. Separately, the project will not build capture hardware.
   camera, in the format described in [data/README.md](../../data/README.md). No camera rig or
   capture software is part of the project. The snapshot interval is whatever the provided
   sequences use and is recorded in the [data card](../data-card.md).
+  *Update 2026-10-28:* the camera is not fixed. It is handheld or loosely placed, may move
+  between snapshots, and can view the counter from any angle (Benoy's capture method; see
+  data/README.md), so position must be compared relative to the counter, not in raw pixels.
 
 ## Consequences
 
