@@ -1,6 +1,6 @@
 # Project and testing checklist
 
-Status snapshot: October 12, 2026. The [problem statement and plan](problem-statement-and-plan.md)
+Status snapshot: October 28, 2026. The [problem statement and plan](problem-statement-and-plan.md)
 describes the targets; this checklist records what actually exists and what has evidence.
 
 A checked item means the work or verification was completed. An unchecked item still needs
@@ -9,11 +9,13 @@ checking items off; keep manual checks distinct from automated tests.
 
 ## Current working flow
 
-Detector side only. A YOLO26n detector fine-tuned on Kaggle close-ups and 75 labeled counter
-photos finds 97 of 112 objects on a held-out counter session at 1280 px. All counter sessions
-show the same counter and the same objects. `objhist_detection.detect` writes detector output
-per session as `SessionDetections` files for the tracker. Tracking, history, the assistant, and
-evaluation are not implemented.
+Detector side only. A YOLO26s detector fine-tuned on Kaggle close-ups and 449 labeled counter
+photos from three kitchens finds 453 of 470 objects and 189 of 203 pieces of cutlery (93%) on
+68 held-out photos of a random split, which is optimistic; on an unseen kitchen an earlier model
+fell to 50% cutlery ([detector results](detector-results.md)). The camera is handheld and can
+be at any angle. `objhist_detection.detect` writes detector output per session as
+`SessionDetections` files for the tracker. Tracking, history, the assistant, and evaluation are
+not implemented.
 
 ## Completed: repository setup (2026-10-08, branch `chore/project-setup`)
 
@@ -40,15 +42,16 @@ evaluation are not implemented.
 - [x] CI install path reproduced locally in a separate environment:
   `uv sync --all-packages --extra cpu --frozen`, Ruff checks passed, 16 passed and 1 GPU test
   skipped.
-- [ ] Observe a passing remote CI run on GitHub.
+- [x] Observe a passing remote CI run on GitHub (every PR since #1; latest #27, 2026-10-28).
 - [ ] Setup reproduced on Justin's machine.
 
 ## Milestone 1: dataset (provided by Benoy)
 
 - [ ] Choose the class list with the scenarios in mind (including items such as milk and dish
   soap) and record it in the [data card](data-card.md).
-- [ ] Provide the snapshot sequences in the format in [data/README.md](../data/README.md),
-  with a timezone-aware capture time for every image.
+- [x] Provide the snapshot sequences in the format in [data/README.md](../data/README.md),
+  with a timezone-aware capture time for every image (2026-10-24): 450 photos in 19 sessions
+  from three kitchens; see [Provided sequences](data-card.md#provided-sequences).
 - [ ] Download the Roboflow dataset; record version, license, and hash.
 - [x] Decide whether the Kaggle data is usable under its rules and worth re-annotating
   (2026-10-09: Benoy confirmed training is permitted; recorded in the data card).
@@ -68,6 +71,11 @@ evaluation are not implemented.
   [data card](data-card.md#dataset-counter-2026-10-12).
 - [x] Freeze splits grouped by capture session (2026-10-12): train 75, val 9, test 16 photos
   (`session_splits.csv`).
+- [x] Label the second and third kitchens (2026-10-21 and 2026-10-27): all 450 photos reviewed
+  by Benoy, the first kitchen twice (re-review 2026-10-28).
+- [x] Random split by photo, chosen by Benoy over all three kitchens (2026-10-27, seed
+  20261027): train 314, val 67, test 68. An exception to the session rule that makes scores
+  optimistic; see the [data card](data-card.md#random-splits-by-photo-2026-10-21-and-2026-10-27).
 
 **Exit test:** a versioned dataset with a documented class list, split lists, and hashes that
 trains with `make train`.
@@ -77,13 +85,13 @@ trains with `make train`.
 - [ ] Zero-shot COCO-pretrained YOLO26 baseline on the held-out split.
 - [ ] Fine-tune YOLO26; record the command, seed, hardware, and metrics for each run.
   First run on `kaggle-kitchenware-v1` (2026-10-09): test mAP50 0.984, mAP50-95 0.961 on
-  single-object close-ups; details in the data card.
+  single-object close-ups; details in [detector results](detector-results.md).
   Second run `yolo26n-counter-kitchen-1280-v2` (2026-10-12): Kaggle + counter data at 1280 px.
   On the 16 counter test photos it scores mAP50 0.885 and mAP50-95 0.782 (old model: 0.334 and
   0.295), finding 97 of 112 objects (old model: 22).
 - [x] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU (2026-10-13):
   YOLO26s at 1280 px (batch 4, 1.94 h) found no more cutlery than the nano on 29 validation
-  photos (69 vs 68 of 87) and added glass-as-cup errors; the nano was kept. See the data card.
+  photos (69 vs 68 of 87) and added glass-as-cup errors; the nano was kept. See [detector results](detector-results.md).
 - [x] Final detector `yolo26n-counter-final-1280-e15` (2026-10-13): trained on 129 counter
   photos including both night sessions; on held-out session 1643 it scores 98 of 112 objects
   (cutlery 34 of 48), mAP50-95 0.796, against 95, 31, and 0.782 for the previous model.
@@ -108,6 +116,12 @@ trains with `make train`.
 - [x] YOLO26s on the full data (2026-10-13): on held-out session 1643 it finds 40 of 48
   cutlery pieces (nano 34) and 104 of 112 objects, mAP50-95 0.830. Chosen on that same session,
   so it needs confirming on a new test session.
+- [x] Three kitchens, random split (2026-10-27/28): the best model,
+  `yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15`, finds 189 of 203 pieces of
+  cutlery (93%), mAP50-95 0.934, on 68 test photos; see
+  [detector results](detector-results.md#random-split-runs-2026-10-21-to-2026-10-28).
+- [ ] Score the best model on a new, unseen session (ideally a new place or night, with piles
+  and partly hidden cutlery) for an honest result.
 - [ ] Choose and record the confidence threshold on the validation split.
 
 **Exit test:** mAP50 and mAP50-95 on the frozen test split, compared with the zero-shot baseline.

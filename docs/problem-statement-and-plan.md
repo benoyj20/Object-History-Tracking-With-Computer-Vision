@@ -13,8 +13,8 @@ guessing how long food has been sitting out.
 
 ## Goal: physical version control
 
-Given consecutive images of a kitchen counter taken over time from a fixed camera, produce an
-object-level history that records:
+Given consecutive images of a kitchen counter taken over time, produce an object-level history
+that records:
 
 - when objects are added and removed,
 - where they are positioned and how they move over time, and
@@ -23,6 +23,10 @@ object-level history that records:
 People can then ask what is on the counter, where an item is, and when it was put there, in
 natural language, for example "How long has the milk been out?" or "Where is the dish soap?".
 The system is intended as a backbone for physical version control of any space.
+
+The proposal assumed a fixed camera. The provided photos are instead taken with a handheld or
+loosely placed phone from any angle (see [data/README.md](../data/README.md)), so tracking
+cannot rely on an object keeping its pixel position.
 
 ## Approach
 

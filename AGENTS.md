@@ -139,7 +139,7 @@ in the directory you are editing, including `apps/web/AGENTS.md` for the web app
   epochs, or hyperparameters against the test set or scripted evaluation runs.
 - For each training run, record the dataset version, class list, base weights
   (for example `yolo26n.pt`), image size, epochs, seed, hardware, and the
-  resulting metrics. Load checkpoints only from your own runs or official
+  resulting metrics in `docs/detector-results.md`. Load checkpoints only from your own runs or official
   Ultralytics releases; `.pt` files execute code when loaded.
 - Declare event-matching rules, metrics, and acceptance thresholds in
   `docs/evaluation-protocol.md` before evaluating. Preserve failed and
