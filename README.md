@@ -1,17 +1,17 @@
 # Physical Version Control for Object History Tracking
 
 A phone camera takes snapshots of a shared kitchen counter over time, handheld or loosely placed
-and from any angle. This project turns those snapshots into an object-level history: what is on the counter, where each item is, when it was
-added, moved, or removed, and how long it has stayed in one place. A natural-language assistant
-answers questions such as "how long has the milk been out?" or "where is the dish soap?" from
-that history.
+and from any angle. This project turns those snapshots into an object-level history: what is on
+the counter, where each item is, when it was added, moved, or removed, and how long it has
+stayed in one place. A natural-language assistant answers questions such as "how long has the
+plate been out?" or "where is the knife?" from that history.
 
 CS5330 Computer Vision final project, Northeastern University, by Justin Gubbens and Benoy Joseph.
 
 ## Pipeline
 
 1. **Detect**: a fine-tuned Ultralytics YOLO26 model finds kitchen objects in each snapshot.
-2. **Track**: each detection is matched to an existing object by position and appearance, so the
+2. **Track**: each detection is matched to an existing object by appearance and position, so the
    same object keeps the same identity across frames.
 3. **Record history**: added, moved, and removed events are logged with the time interval in which
    each change happened. Snapshots are sparse, so placement times are intervals, not exact times.
@@ -21,13 +21,62 @@ CS5330 Computer Vision final project, Northeastern University, by Justin Gubbens
 
 ## Current status
 
-Detection works: a YOLO26s model fine-tuned on Kaggle close-ups and 449 labeled counter photos
-from three kitchens finds 93% of cutlery on held-out photos (see
-[detector results](docs/detector-results.md)), and `objhist_detection.detect` writes its output
-per session for the tracker. Labeling tools, detector scoring, a starter Next.js web app, CI,
-and contributor rules are in place. Tracking, the history store, the assistant, and scenario
-evaluation are not implemented yet. See the [project checklist](docs/project-checklist.md) for
-what exists and what remains.
+| Part | Lead | Status |
+| --- | --- | --- |
+| Detector | Benoy | **Working** |
+| Tracking and history | Justin | Not started |
+| Assistant and web page | Joint | Not started (starter web app only) |
+| Evaluation | Joint | Detector scoring done; scenario evaluation not started |
+
+**Detector.** A YOLO26s model fine-tuned on Kaggle close-ups and 449 labeled counter photos from
+three kitchens finds 453 of 470 objects and 189 of 203 pieces of cutlery (93%) on 68 held-out
+photos. Classes: cup, glass, plate, fork, knife, spoon. The split is random by photo, so this
+score is optimistic; an earlier model fell to 50% of cutlery in a kitchen it had never seen, and
+a new, unseen session is still needed for an honest score. Every run is in
+[detector results](docs/detector-results.md). `objhist_detection.detect` writes one JSON file
+per session for the tracker (format proposed in
+[ADR 0005](docs/adr/0005-detector-output-file-for-the-tracker.md)).
+
+**The camera is not fixed.** It is a handheld phone that can view the counter from any angle and
+moves between snapshots, so an object's pixel position changes even when nothing on the counter
+moved. Tracking has to rely on appearance and on positions relative to the counter and to other
+objects.
+
+**Data.** The 450 counter photos (19 sessions with capture times), the labels, the train/val/test
+split, and the best model are not in GitHub, because the photos are private and the files are
+large. Ask Benoy for the private data package; [data/README.md](data/README.md) describes the
+layout.
+
+## Who does what next
+
+### Justin: tracking and history (`packages/tracking`)
+
+1. **Read the detector output.** Run the detector on the sessions, or use its JSON files: each
+   photo's boxes (class, confidence, position) and capture time. Accept the format in
+   [ADR 0005](docs/adr/0005-detector-output-file-for-the-tracker.md) or propose changes.
+2. **Keep object identity across photos.** Match each detection to an object from the previous
+   photo using appearance (DINOv2 embeddings, compared with CLIP) and position relative to the
+   counter and other objects. Two identical cups must stay two objects.
+3. **Turn matches into events:** added, removed, and moved, each with a time interval. A missed
+   detection or an object hidden behind another must not be logged as removed.
+4. **Store the history in SQLite** with a documented schema: objects, events, positions, and
+   time intervals.
+5. **Tests:** synthetic detection sequences must produce the expected event log, including
+   duplicates, occlusion, two objects swapping places, and empty photos.
+
+6. Score the best model on a new, unseen session.
+7. Shoot scripted scenario sessions and log the true changes (what was added, moved, or removed,
+   and when) as ground truth for evaluation.
+
+### Together
+
+- **Evaluation:** agree the open values in the
+  [evaluation protocol](docs/evaluation-protocol.md) before testing, including the "moved"
+  threshold (it cannot be in pixels with a moving camera). Score event precision and recall on
+  the scripted scenarios against an IoU-only baseline.
+- **Assistant and web page:** Claude answers questions from the SQLite history through a FastAPI
+  service and the Next.js page.
+- **Final demo and report.**
 
 ## Quick start
 
@@ -40,9 +89,12 @@ driver 580 or newer (check with `nvidia-smi`).
 uv sync --all-packages --extra cu130      # or: make bootstrap
 uv run python -m objhist_detection.env_check --require-cuda   # or: make env-check
 
-# CPU only (macOS, machines without NVIDIA GPUs)
+# macOS (Apple Silicon) and machines without NVIDIA GPUs
 uv sync --all-packages --extra cpu        # or: make bootstrap TORCH=cpu
 ```
+
+On a Mac, the `cpu` build also includes Apple GPU support: pass `--device mps` to detector
+commands (or `--device cpu`). Training is only practical on an NVIDIA GPU.
 
 Install the web app's dependencies with `pnpm install`, then start it with `make dev-web`
 (<http://localhost:3000>).
@@ -57,6 +109,14 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pytest
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+Run the best detector on every session (after unpacking the data package). Leave out
+`--device` on an NVIDIA GPU; on a Mac use `--device mps`, or `--device cpu` if that fails:
+
+```sh
+uv run python -m objhist_detection.detect --no-tiled --device mps \
+    --weights runs/detect/yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15/weights/best.pt
 ```
 
 Once a dataset is in place (see [data/README.md](data/README.md)), fine-tune YOLO26:
