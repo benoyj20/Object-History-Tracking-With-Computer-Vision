@@ -45,7 +45,10 @@ objects.
 **Data.** The 450 counter photos (19 sessions with capture times), the labels, the train/val/test
 split, and the best model are not in GitHub, because the photos are private and the files are
 large. Ask Benoy for the private data package; [data/README.md](data/README.md) describes the
-layout.
+layout. The Kaggle close-ups used in training are not in the package either, because their rules
+forbid redistribution. Only for retraining, download them yourself from
+[Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data)
+(sign in and accept the rules on the Rules tab first).
 
 ## Who does what next
 
