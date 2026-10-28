@@ -507,11 +507,9 @@ zone.
   `SubsecTimeOriginal`, and `OffsetTimeOriginal` (-04:00). Change logs list the same seven
   objects as present in every photo.
 - `2026-10-18-1055`, `-1140`, `-1155` (second kitchen, 2026-10-18): 155 photos (IMG_6571–6726,
-  IMG_6628 absent) taken by Amrutha in her kitchen with an iPhone, 4032x3024 JPEG (3
-  portrait). Benoy delivered them as a Google Drive zip
-  (`Amrutha Kitchen Images-20261019T032652Z-1-001.zip`). Amrutha agreed to their use for
-  training, label review, and error analysis by coding agents (reported by Benoy,
-  2026-10-18). The photos carry no EXIF capture time, camera model, or GPS.
+  IMG_6628 absent) taken by Benoy in a second kitchen with an iPhone, 4032x3024 JPEG (3
+  portrait), and delivered as a Google Drive zip (exported 2026-10-19 03:26 UTC). The photos
+  carry no EXIF capture time, camera model, or GPS.
   - **Capture times:** the manifests use the zip's file times with offset -04:00, which Benoy
     checked and confirmed as the real capture times (2026-10-18). They are whole seconds. In
     `-1055`, the times of the 11 photos IMG_6600–6610 do not follow their file numbers,
