@@ -129,44 +129,75 @@ make train DATA=data/processed/kitchen/data.yaml EPOCHS=100
 make train DATA=... RUN_NAME=<new name> TRAIN_ARGS="flipud=0.5"   # extra Ultralytics arguments
 ```
 
-Training runs are also recorded in a local MLflow store (`runs/mlflow/`, ignored by Git): `make
-train` logs parameters, per-epoch metrics, plots, and weights through Ultralytics' MLflow
-callback, then tags the run with its checkpoint hashes. Browse and compare runs with `make
-mlflow-ui` (<http://127.0.0.1:5000>). `make train` refuses a `RUN_NAME` whose folder or MLflow
-run already exists. A plain `yolo detect train` is only logged when
-`MLFLOW_TRACKING_URI=sqlite:///runs/mlflow/mlflow.db` and `MLFLOW_EXPERIMENT_NAME=objhist-detector`
-are set (see `.env.example`); without them Ultralytics warns and trains without MLflow. Run
-`uv run python -m objhist_detection.experiment_tracking init` once before such a run, or MLflow
-creates the experiment with its artifacts in `./mlartifacts` instead of `runs/mlflow/artifacts`;
-afterwards, run `import-runs` on the new folder. Runs trained before MLflow was added, and
-held-out scores from `objhist_evaluation.score_detections --json-out`, are imported with:
+Every `make train` run is also recorded in MLflow; see the next section.
+
+## Experiment tracking (MLflow)
+
+All detector training runs are in a local MLflow store, `runs/mlflow/` (ignored by Git), so they
+can be compared side by side. MLflow complements
+[docs/detector-results.md](docs/detector-results.md), where every run is still written up.
+
+### Open the UI
 
 ```sh
-uv run python -m objhist_detection.experiment_tracking import-runs runs/detect runs/detect/old
-uv run python -m objhist_detection.experiment_tracking import-scores data/interim/scores/*.json
+make mlflow-ui    # or: uv run mlflow ui --backend-store-uri sqlite:///runs/mlflow/mlflow.db
 ```
 
-Both are safe to rerun and exit 1 if anything was left unrecorded (for example a score whose
-weights match no run, or different counts already logged under the same dataset name).
+Then open <http://127.0.0.1:5000> and the **objhist-detector** experiment.
 
-The experiment's **Models** tab lists one model per run: its `best.pt`, with the validation metrics
-of that epoch, the held-out scores of those weights, and the checkpoint's path and SHA-256 (the
-weights stay in `runs/`). `make train` adds new runs there and moves the tag
-`objhist.current_best = true` automatically (`log-models --auto-best`) to a new run whose
-validation mAP50-95 beats the current best's on the same `data` config; ties keep the current
-best, older runs never take the tag back from a best chosen by hand, and the test split is never
-used. A run on a new dataset has a different validation set, so it only becomes the current best
-by hand. Set the best by hand, or represent a run by another
-checkpoint, with:
+| Tab | What it shows |
+| --- | --- |
+| **Runs** (<http://127.0.0.1:5000/#/experiments/1/runs>) | One row per training run. Click a name for its parameters, per-epoch curves, tags (folder, checkpoint SHA-256) and artifacts (plots, `results.csv`, score files). Tick several runs and click **Compare** for side-by-side curves. Use **Columns** to add held-out scores, for example search "cutlery". |
+| **Models** | One model per run: its checkpoint (`best.pt` unless chosen otherwise), the validation metrics of that epoch, and the held-out scores of those weights. The current best model has the tag `objhist.current_best = true`. |
+| Evaluation runs, Traces, and other GenAI tabs | Not used. They are for LLM apps and stay empty for training runs. |
+
+### What is recorded
+
+- **Live, during `make train`:** Ultralytics' MLflow callback logs parameters, per-epoch metrics,
+  plots, and weights. Afterwards `make train` tags the run with its checkpoint hashes, adds its
+  model, and updates the current best (see below). `make train` refuses a `RUN_NAME` whose folder
+  or MLflow run already exists.
+- **Older runs:** runs trained before MLflow was added were imported from their `args.yaml` and
+  `results.csv`. Their weights stay in `runs/`; MLflow records each checkpoint's path and SHA-256.
+- **Held-out scores:** `objhist_evaluation.score_detections --json-out` results, attached to the
+  run and model whose weights they scored (matched by SHA-256), as
+  `score/<dataset>/<split>/<settings>/<count>` metrics.
+
+### Commands
 
 ```sh
+# Add run folders trained outside `make train`, then their models (Models tab)
+uv run python -m objhist_detection.experiment_tracking import-runs runs/detect runs/detect/old
+uv run python -m objhist_detection.experiment_tracking log-models
+
+# Attach held-out scores (after log-models, so they also reach the models)
+uv run python -m objhist_detection.experiment_tracking import-scores data/interim/scores/*.json
+
+# Choose the best model by hand, or represent a run by last.pt instead of best.pt
 uv run python -m objhist_detection.experiment_tracking log-models --current-best <run name>
 uv run python -m objhist_detection.experiment_tracking log-models --checkpoint <run name>=last
 ```
- Run `import-scores` again after
-adding models to link earlier scores to them. Scores attach to the run whose weights they scored (matched by SHA-256)
-as `score/<dataset>/<split>/<settings>/<count>` metrics. MLflow complements
-[docs/detector-results.md](docs/detector-results.md); every run is still written up there.
+
+Every command is safe to rerun and exits 1 if something was left unrecorded, for example a score
+whose weights match no run, or different counts already logged under the same dataset name.
+
+### Current best model
+
+The current best is the flip run, `yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15`,
+chosen by Benoy. After each `make train`, the tag moves automatically (`log-models --auto-best`)
+to the new run only if its validation mAP50-95 beats the current best's on the same `data`
+config. Ties keep the current best, older runs never take the tag back, and the test split is
+never used. A run on a new dataset has a different validation set, so it only becomes the
+current best by hand.
+
+### Plain `yolo` runs
+
+A plain `yolo detect train`, outside `make train`, is only logged when
+`MLFLOW_TRACKING_URI=sqlite:///runs/mlflow/mlflow.db` and `MLFLOW_EXPERIMENT_NAME=objhist-detector`
+are set (see `.env.example`); without them Ultralytics warns and trains without MLflow. Run
+`uv run python -m objhist_detection.experiment_tracking init` once before such a run, or MLflow
+puts its artifacts in `./mlartifacts` instead of `runs/mlflow/artifacts`. Afterwards, run
+`import-runs` and `log-models` on it.
 
 ## Repository layout
 
