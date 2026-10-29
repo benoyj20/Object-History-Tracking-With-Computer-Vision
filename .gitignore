@@ -32,6 +32,8 @@ weights/
 *.engine
 *.torchscript
 mlruns/
+mlartifacts/
+mlflow.db
 wandb/
 
 # Claude Code session artifacts

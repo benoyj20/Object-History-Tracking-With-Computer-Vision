@@ -7,6 +7,17 @@ class at IoU ≥ 0.5, confidence ≥ 0.25) and mAP comes from `yolo detect val`.
 runs: RTX 5070 Laptop GPU 8 GB, torch 2.14.1+cu130, Ultralytics 8.4.174.
 
 Runs from before 2026-10-27 are in `runs/detect/old/`; the three latest are in `runs/detect/`.
+All of these runs, with per-epoch curves, parameters, plots, and the held-out scores in
+`data/interim/scores/`, are also in the local MLflow store (`make mlflow-ui`; see the README).
+Runs before 2026-10-29 were imported from their run folders after training.
+The Models tab holds one model per run (`best.pt`; `final.pt` for
+`yolo26n-counter-final-1280-e15` and `last.pt` for `yolo26s-counter-final-1280-e15`, the
+checkpoints scored below), with the current best tagged `objhist.current_best`.
+The 2026-10-27/28 test counts (overall and per kitchen) were recomputed on 2026-10-29 with
+`score_detections --json-out` from single-pass 1280 px detections in
+`data/interim/detections-2026-10-29/`; they match the tables below. Per-kitchen scores use label
+copies of the test split in `data/interim/score-subsets/` (first kitchen day and night, second
+kitchen, third kitchen); the score files are `data/interim/scores/scores-test-random-2026-10-27-relabeled*.json`.
 
 ## Current best model
 
@@ -15,6 +26,13 @@ Runs from before 2026-10-27 are in `runs/detect/old/`; the three latest are in `
 pieces of cutlery (93%), mAP50-95 0.934. The random split makes this optimistic; a new, unseen
 session is still needed for an honest score. Use it single pass at 1280 px with duplicates
 merged (`--no-tiled`).
+
+**How the best model is chosen:** Benoy chose the flip run (confirmed 2026-10-29) over the
+relabeled run, whose validation mAP50-95 is slightly higher (0.953 against 0.951). From now on,
+`make train` (`log-models --auto-best` in MLflow) makes a new run the best model only if its
+validation mAP50-95 beats the current best's on the same data config; ties keep the current
+best, and the test split is not used. A run on a new dataset has a different validation set and
+is compared by hand.
 
 ## Run index
 
@@ -326,6 +344,8 @@ merged, confidence ≥ 0.25):
 | `yolo26s-counter-random-relabeled-2026-10-28-1280-e15` | re-reviewed | default | `61af703cdb2dd8bd0679f5dfac4d16271f27befc4a487817aabe6f36eaf1c3b5` | 0.953 | 0.935 | 452 | 187 | 23 | 6 |
 | `yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15` | re-reviewed | + `flipud=0.5` | `57f3572d41b0ff925cb2e58f4659a0a9a5f66740b22c1fa17f2476bcfe24ebcb` | 0.951 | 0.934 | 453 | **189 (93%)** | **25** | 6 |
 
+- **By kitchen, relabeled run (cutlery):** first kitchen day 43 of 51, night 23 of 27; second
+  kitchen 64 of 66; third kitchen 57 of 59.
 - **By kitchen, flip run (cutlery):** first kitchen day 44 of 51, night 25 of 27; second
   kitchen 63 of 66; third kitchen 57 of 59 (3 false boxes). Per-class mAP50-95: fork 0.886,
   knife 0.889, spoon 0.896. At IoU ≥ 0.1, 196 of 203 cutlery pieces are found.

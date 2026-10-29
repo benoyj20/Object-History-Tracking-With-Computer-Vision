@@ -126,7 +126,47 @@ Once a dataset is in place (see [data/README.md](data/README.md)), fine-tune YOL
 
 ```sh
 make train DATA=data/processed/kitchen/data.yaml EPOCHS=100
+make train DATA=... RUN_NAME=<new name> TRAIN_ARGS="flipud=0.5"   # extra Ultralytics arguments
 ```
+
+Training runs are also recorded in a local MLflow store (`runs/mlflow/`, ignored by Git): `make
+train` logs parameters, per-epoch metrics, plots, and weights through Ultralytics' MLflow
+callback, then tags the run with its checkpoint hashes. Browse and compare runs with `make
+mlflow-ui` (<http://127.0.0.1:5000>). `make train` refuses a `RUN_NAME` whose folder or MLflow
+run already exists. A plain `yolo detect train` is only logged when
+`MLFLOW_TRACKING_URI=sqlite:///runs/mlflow/mlflow.db` and `MLFLOW_EXPERIMENT_NAME=objhist-detector`
+are set (see `.env.example`); without them Ultralytics warns and trains without MLflow. Run
+`uv run python -m objhist_detection.experiment_tracking init` once before such a run, or MLflow
+creates the experiment with its artifacts in `./mlartifacts` instead of `runs/mlflow/artifacts`;
+afterwards, run `import-runs` on the new folder. Runs trained before MLflow was added, and
+held-out scores from `objhist_evaluation.score_detections --json-out`, are imported with:
+
+```sh
+uv run python -m objhist_detection.experiment_tracking import-runs runs/detect runs/detect/old
+uv run python -m objhist_detection.experiment_tracking import-scores data/interim/scores/*.json
+```
+
+Both are safe to rerun and exit 1 if anything was left unrecorded (for example a score whose
+weights match no run, or different counts already logged under the same dataset name).
+
+The experiment's **Models** tab lists one model per run: its `best.pt`, with the validation metrics
+of that epoch, the held-out scores of those weights, and the checkpoint's path and SHA-256 (the
+weights stay in `runs/`). `make train` adds new runs there and moves the tag
+`objhist.current_best = true` automatically (`log-models --auto-best`) to a new run whose
+validation mAP50-95 beats the current best's on the same `data` config; ties keep the current
+best, older runs never take the tag back from a best chosen by hand, and the test split is never
+used. A run on a new dataset has a different validation set, so it only becomes the current best
+by hand. Set the best by hand, or represent a run by another
+checkpoint, with:
+
+```sh
+uv run python -m objhist_detection.experiment_tracking log-models --current-best <run name>
+uv run python -m objhist_detection.experiment_tracking log-models --checkpoint <run name>=last
+```
+ Run `import-scores` again after
+adding models to link earlier scores to them. Scores attach to the run whose weights they scored (matched by SHA-256)
+as `score/<dataset>/<split>/<settings>/<count>` metrics. MLflow complements
+[docs/detector-results.md](docs/detector-results.md); every run is still written up there.
 
 ## Repository layout
 
