@@ -1,6 +1,6 @@
 # Project and testing checklist
 
-Status snapshot: October 28, 2026. The [problem statement and plan](problem-statement-and-plan.md)
+Status snapshot: November 17, 2026. The [problem statement and plan](problem-statement-and-plan.md)
 describes the targets; this checklist records what actually exists and what has evidence.
 
 A checked item means the work or verification was completed. An unchecked item still needs
@@ -9,13 +9,18 @@ checking items off; keep manual checks distinct from automated tests.
 
 ## Current working flow
 
-Detector side only. A YOLO26s detector fine-tuned on Kaggle close-ups and 449 labeled counter
-photos from three kitchens finds 453 of 470 objects and 189 of 203 pieces of cutlery (93%) on
-68 held-out photos of a random split, which is optimistic; on an unseen kitchen an earlier model
-fell to 50% cutlery ([detector results](detector-results.md)). The camera is handheld and can
-be at any angle. `objhist_detection.detect` writes detector output per session as
-`SessionDetections` files for the tracker. Tracking, history, the assistant, and evaluation are
-not implemented.
+Photos to a stored object history, not yet accurate. A YOLO26s detector fine-tuned on Kaggle
+close-ups and 449 labeled counter photos from three kitchens finds 453 of 470 objects and 189
+of 203 pieces of cutlery (93%) on 68 held-out photos of a random split, which is optimistic; on
+an unseen kitchen an earlier model fell to 50% cutlery ([detector results](detector-results.md)).
+The camera is handheld and can be at any angle. `objhist_detection.detect` writes detector
+output per session as `SessionDetections` files; `objhist_tracking.import_detections` loads them
+into the SQLite history ([ADR 0006](adr/0006-history-store-schema-and-detection-import.md));
+`objhist_tracking.embed_detections` caches DINOv2 embeddings; and
+`objhist_tracking.track_session` stores objects, observations, and added/removed events with
+placement intervals. On the static first-kitchen sessions the best tracker still reports about
+four times too many objects, mostly because DINOv2 does not recognize cutlery reliably (see
+Milestone 3). The assistant, the web page, and formal evaluation are not implemented.
 
 ## Completed: repository setup (2026-10-08, branch `chore/project-setup`)
 
@@ -44,6 +49,10 @@ not implemented.
   skipped.
 - [x] Observe a passing remote CI run on GitHub (every PR since #1; latest #27, 2026-10-28).
 - [ ] Setup reproduced on Justin's machine.
+  Partly (2026-11-17, macOS on Apple silicon, CPU build): Ruff and `uv run pytest` ran (286
+  passed, 1 skipped, 1 failed: `test_detect.py::test_unreadable_photo_stops_the_run`, which
+  passes alone and fails only after other detector tests, with or without the tracking
+  package), and `objhist_detection.detect` ran on all 19 sessions on the CPU. No CUDA here.
 
 ## Milestone 1: dataset (provided by Benoy)
 
@@ -108,7 +117,8 @@ trains with `make train`.
   ([ADR 0005](adr/0005-detector-output-file-for-the-tracker.md), proposed). Ran on the test
   session: 2 frames, 12 detections, the same as `preview`. Tests in
   `packages/detection/tests/test_detect.py` and `test_capture_times.py`.
-- [ ] Justin agrees to the detector output file format (ADR 0005).
+- [x] Justin agrees to the detector output file format (ADR 0005) (2026-11-17); the tracker
+  reads it unchanged, and the ADR is marked accepted.
 - [x] Rerunnable detector scoring (2026-10-12, branch `feature/detector-scoring`):
   `python -m objhist_evaluation.score_detections` counts correct, wrong-class, missed, and false
   boxes per class from `detect` output; it reproduced the recorded test comparison exactly.
@@ -128,12 +138,55 @@ trains with `make train`.
 
 ## Milestone 3: tracking and history (lead: Justin)
 
+Work so far is on branch `feature/tracking` (2026-11-17, not yet merged), in
+`packages/tracking`.
+
 - [ ] Association by position and DINOv2/CLIP appearance embeddings across snapshots.
+  Position and DINOv2 are implemented (`tracker.py`), with optional camera-movement
+  compensation from the boxes (`camera_alignment.py`) and two-stage matching that follows moved
+  objects by appearance. CLIP is not implemented, and accuracy on real photos is not yet
+  acceptable (results below).
 - [ ] Compare DINOv2 and CLIP embeddings on the validation scenarios; record the choice.
+  No tracking validation split exists yet.
 - [ ] Added, removed, and moved events with placement intervals between snapshots.
-- [ ] Rule that keeps missed detections and occlusion distinct from removal.
-- [ ] SQLite history store with a documented schema and ordered migrations.
-- [ ] Unit tests for duplicates, occlusion, swaps, and empty frames.
+  Added and removed are written with intervals between two photos (an object present in the
+  first photo gets an open start). Moved is not written until its threshold is agreed in the
+  [evaluation protocol](evaluation-protocol.md); observations keep every position.
+- [x] Rule that keeps missed detections and occlusion distinct from removal (2026-11-17):
+  removal needs 2 processed photos in a row without the object (`REMOVAL_MISSING_FRAMES`,
+  provisional), dated between the last photo it was seen in and the first it was missing from;
+  missing only at a session's end gives no event. Tests in `test_tracker.py`.
+- [x] SQLite history store with a documented schema and ordered migrations (2026-11-17):
+  migrations `0001`–`0003` with recorded hashes, documented in
+  [ADR 0006](adr/0006-history-store-schema-and-detection-import.md) (proposed; needs Benoy's
+  agreement). Tests in `test_history_store.py`, `test_import_detections.py`,
+  `test_tracker_tables.py`, and `test_embed_detections.py`.
+- [x] Unit tests for duplicates, occlusion, swaps, and empty frames (2026-11-17): 96 tracking
+  tests on synthetic detections and stub embeddings, including identical cups, cups that trade
+  places, camera moves, a moved object, one missed photo, and empty photos.
+
+**Real-data runs (2026-11-17, informal):** the current best detector
+(`yolo26s-counter-random-relabeled-flipud-2026-10-28-1280-e15`, single pass at 1280 px) on all
+19 sessions gave 3,067 detections in 450 photos; these photos are in its training data, so the
+detections are better than on new photos. DINOv2 (`facebook/dinov2-small`, revision
+`ed25f3a31f01632728cabb09d1542f84ab7b0056`) embedded every detection locally. The first
+kitchen's 8 sessions (151 photos) hold the same seven objects in every photo, with one or two
+moved between shots (data card, change logs, and Benoy, 2026-11-17), so the correct history is
+56 objects with no added or removed events after the first photo:
+
+| Tracker version | Objects (truth 56) | False added | False removed |
+| --- | --- | --- | --- |
+| `appearance-aligned-v2` (DINOv2, alignment, two-stage) | 222 | 167 | 156 |
+| `appearance-gated-v1` (DINOv2) | 244 | 189 | 177 |
+| `position-centre-v1` (baseline) | 313 | 258 | 243 |
+| `appearance-aligned-v1` | 349 | 294 | 277 |
+| `position-aligned-v1` | 362 | 307 | 290 |
+
+All thresholds are provisional and were chosen while looking at these sessions, so these are
+not evaluation results. Cutlery causes most errors: the one knife in each first-kitchen session
+scores below the 0.5 similarity threshold against itself in 55% of consecutive photos (fork
+44%, spoon 29%; cups 4%). Next: split these sessions into tuning and held-out sets in the
+evaluation protocol before tuning.
 
 **Exit test:** synthetic `FrameDetections` sequences produce the expected event log, including
 the edge cases above.

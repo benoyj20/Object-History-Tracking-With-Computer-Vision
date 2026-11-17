@@ -34,7 +34,7 @@ photos. Classes: cup, glass, plate, fork, knife, spoon. The split is random by p
 score is optimistic; an earlier model fell to 50% of cutlery in a kitchen it had never seen, and
 a new, unseen session is still needed for an honest score. Every run is in
 [detector results](docs/detector-results.md). `objhist_detection.detect` writes one JSON file
-per session for the tracker (format proposed in
+per session for the tracker (format agreed in
 [ADR 0005](docs/adr/0005-detector-output-file-for-the-tracker.md)).
 
 **The camera is not fixed.** It is a handheld phone that can view the counter from any angle and
