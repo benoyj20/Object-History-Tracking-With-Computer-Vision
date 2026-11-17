@@ -1,7 +1,6 @@
 # 0005: Detector output file for the tracker
 
-Date: 2026-10-12. Status: proposed by Benoy; needs Justin's agreement before tracker code
-depends on it.
+Date: 2026-10-12. Status: accepted (proposed by Benoy; agreed by Justin on 2026-11-17).
 
 ## Context
 
